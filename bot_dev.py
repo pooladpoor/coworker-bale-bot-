@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 import google.genai as genai
 from google.genai import types
+import concurrent.futures
 
 
 # ==========================================
@@ -49,7 +50,7 @@ def ask_gemini(image_bytes):
         )
         return response.text # 🟢 حذف متد replace برای جلوگیری از خرابی کدهای ریاضی
     except Exception as e:
-        return f"خطا GGGGGدر دریافت پاسخ از جمنای: {str(e)}"
+        return f"خطا در دریافت پاسخ از جمنای: {str(e)}"
 
 def ask_chatgpt(image_bytes):
     try:
@@ -146,7 +147,7 @@ def create_html_report(gemini_ans, gpt_ans, output_filename="answer.html"):
     <html dir="rtl" lang="fa">
     <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="viewport" content="width=1400">
         <title>پاسخ‌نامه هوش مصنوعی</title>
         
         <script>
@@ -291,11 +292,18 @@ def process_updates(updates):
                 print(f"⚠️ Warning: File size is very small! Downloaded content may be an error: {img_data[:100]}")
             
             # ۴. ارسال به هوش‌های مصنوعی
-            print("→ Sending to Gemini...")
-            gemini_ans = ask_gemini(img_data)
-            
-            print("→ Sending to ChatGPT...")
-            gpt_ans = ask_chatgpt(img_data)
+            # جدید - موازی (سریع)
+            print("→ Sending to Gemini and ChatGPT simultaneously...")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                future_gemini = executor.submit(ask_gemini, img_data)
+                print("1")
+                future_gpt    = executor.submit(ask_chatgpt, img_data)
+                print("2")
+                gemini_ans = future_gemini.result()
+                print("3")
+                gpt_ans    = future_gpt.result()
+                print("4")
+            print("✅ Both AI responses received.")
             
             # ۵. ساخت فایل HTML
             html_name = f"answer_{chat_id}.html"
