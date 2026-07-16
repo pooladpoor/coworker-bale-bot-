@@ -1,5 +1,4 @@
 requests
-openai
-google-genai
-markdown
 python-dotenv
+openai
+markdown
