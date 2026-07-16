@@ -51,22 +51,35 @@ class Worker:
             finally:
                 self._queue.task_done()
 
-    async def _safe_notify_failure(self, chat_id: int) -> None:
+    async def _safe_notify_failure(self, job: IncomingJob) -> None:
         try:
             await self._bale.send_message(
-                chat_id, "❌ خطایی در پردازش تصویر رخ داد. لطفاً دوباره امتحان کنید."
+                job.chat_id,
+                "❌ خطایی در پردازش تصویر رخ داد. لطفاً دوباره امتحان کنید.",
+                reply_to_message_id=self._reply_id(job),
             )
         except Exception:  # noqa: BLE001
             logger.exception("Worker %d: also failed to notify user %s of the error",
-                              self.worker_id, chat_id)
+                              self.worker_id, job.chat_id)
+
+    @staticmethod
+    def _reply_id(job: IncomingJob) -> int | None:
+        """Only thread replies in group chats -- no need to clutter a
+        private 1:1 chat with reply references."""
+        if job.chat_type in ("group", "supergroup"):
+            return job.message_id
+        return None
 
     async def _process_job(self, job: IncomingJob) -> None:
         timings = JobTimings()
         total_sw = Stopwatch()
+        reply_id = self._reply_id(job)
 
         with total_sw:
             await self._bale.send_message(
-                job.chat_id, "⏳ تصویر دریافت شد. در حال پردازش... لطفاً صبور باشید."
+                job.chat_id,
+                "⏳ تصویر دریافت شد. در حال پردازش... لطفاً صبور باشید.",
+                reply_to_message_id=reply_id,
             )
 
             # 1. Resolve + download the image.
@@ -112,6 +125,7 @@ class Worker:
                     buffer,
                     filename=f"answer_{job.chat_id}.html",
                     caption="🌐 پاسخ سوال شما آماده شد! فایل HTML بالا را باز کنید.",
+                    reply_to_message_id=reply_id,
                 )
             timings.upload_seconds = sw.elapsed
 

@@ -35,6 +35,30 @@ class BaleClient:
         self._session = session
         self._settings = settings
 
+    async def get_me(self) -> dict:
+        """Fetch the bot's own identity (id, username, ...). Used at
+        startup to detect when the bot is @-mentioned in a group."""
+
+        async def _do_request() -> dict:
+            async with self._session.get(
+                f"{self._settings.bale_api_url}getMe",
+                timeout=aiohttp.ClientTimeout(total=self._settings.http_timeout_total),
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                if not data.get("ok"):
+                    raise BaleAPIError(f"getMe returned ok=False: {data}")
+                return data["result"]
+
+        return await retry_async(
+            _do_request,
+            max_retries=self._settings.max_retries,
+            backoff_base=self._settings.retry_backoff_base,
+            retriable_exceptions=_RETRIABLE_EXCEPTIONS,
+            logger=logger,
+            op_name="getMe",
+        )
+
     async def get_updates(self, offset: int, timeout: int) -> list[dict]:
         """Long-poll for new updates. Non-blocking with respect to the
         rest of the event loop -- other coroutines (workers) keep running
@@ -63,8 +87,12 @@ class BaleClient:
             op_name="getUpdates",
         )
 
-    async def send_message(self, chat_id: int, text: str) -> None:
-        payload = {"chat_id": chat_id, "text": text}
+    async def send_message(
+        self, chat_id: int, text: str, reply_to_message_id: int | None = None
+    ) -> None:
+        payload: dict = {"chat_id": chat_id, "text": text}
+        if reply_to_message_id is not None:
+            payload["reply_to_message_id"] = reply_to_message_id
 
         async def _do_request() -> None:
             async with self._session.post(
@@ -132,6 +160,7 @@ class BaleClient:
         file_buffer: io.BytesIO,
         filename: str,
         caption: str,
+        reply_to_message_id: int | None = None,
     ) -> None:
         """Send a file directly from an in-memory buffer -- no temp file
         touches disk."""
@@ -142,6 +171,8 @@ class BaleClient:
             form = aiohttp.FormData()
             form.add_field("chat_id", str(chat_id))
             form.add_field("caption", caption)
+            if reply_to_message_id is not None:
+                form.add_field("reply_to_message_id", str(reply_to_message_id))
             form.add_field(
                 "document",
                 file_buffer,

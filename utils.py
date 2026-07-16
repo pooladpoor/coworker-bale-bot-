@@ -38,6 +38,38 @@ class Stopwatch:
         self.elapsed = time.monotonic() - self._start
 
 
+def message_mentions_bot(
+    text: str | None,
+    entities: list[dict] | None,
+    bot_username: str | None,
+) -> bool:
+    """Detect whether a message (its caption or text) @-mentions the bot.
+
+    Prefers structured `entities`/`caption_entities` (type == "mention")
+    when the Bale API provides them, since that's exact; falls back to a
+    plain case-insensitive substring check on "@username" otherwise.
+    """
+    if not bot_username:
+        return False
+
+    handle = f"@{bot_username}".lower()
+
+    if entities and text:
+        for entity in entities:
+            if entity.get("type") != "mention":
+                continue
+            offset = entity.get("offset", 0)
+            length = entity.get("length", 0)
+            mention_text = text[offset:offset + length].lower()
+            if mention_text == handle:
+                return True
+
+    if text and handle in text.lower():
+        return True
+
+    return False
+
+
 async def retry_async(
     func: Callable[[], Awaitable[T]],
     *,

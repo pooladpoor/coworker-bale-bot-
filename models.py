@@ -13,6 +13,8 @@ class IncomingJob:
 
     chat_id: int
     file_id: str
+    message_id: int | None = None
+    chat_type: str = "private"
     enqueued_at: float = field(default_factory=time.monotonic)
 
 

@@ -39,6 +39,25 @@ concurrently with each other.
 
 ## Setup
 
+## Group support
+
+The bot can be added to a Bale group. Behaviour:
+
+- **Private chat**: unchanged -- any photo is processed, any text gets the greeting.
+- **Group / supergroup**: to avoid answering every photo posted by anyone
+  in a busy group, a photo is only processed if its **caption tags the
+  bot** (e.g. `@your_bot_username این سوالو حل کن`). Plain text messages
+  in a group are also ignored unless they mention the bot.
+- The bot's own `@username` is resolved automatically at startup via
+  `getMe()`; set `BOT_USERNAME` in `.env` to skip that call or override it.
+- All replies in a group (the "در حال پردازش" notice, error messages, and
+  the final HTML report) are sent as a **reply to the original photo
+  message** (`reply_to_message_id`), so it's clear which question each
+  answer belongs to even in a fast-moving group.
+- Set `GROUP_REQUIRE_MENTION=false` in `.env` to make the bot answer
+  every photo posted in a group, with no tag required.
+
+
 ```bash
 python3.12 -m venv venv
 source venv/bin/activate

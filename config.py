@@ -63,6 +63,14 @@ class Settings:
     log_level: str = "INFO"
     min_valid_image_bytes: int = 1000
 
+    # --- Group behaviour ---------------------------------------------------
+    # In group/supergroup chats, only respond to a photo if the bot is
+    # @-mentioned in its caption. Private chats always respond.
+    group_require_mention: bool = True
+    # Optional override; if unset, the username is fetched once at startup
+    # via getMe() and cached for the process lifetime.
+    bot_username: str | None = None
+
     @property
     def bale_api_url(self) -> str:
         return f"https://tapi.bale.ai/bot{self.bale_token}/"
@@ -100,6 +108,9 @@ class Settings:
             polling_error_backoff=_get_float("POLLING_ERROR_BACKOFF", 3.0),
             log_level=os.getenv("LOG_LEVEL", "INFO"),
             min_valid_image_bytes=_get_int("MIN_VALID_IMAGE_BYTES", 1000),
+            group_require_mention=os.getenv("GROUP_REQUIRE_MENTION", "true").strip().lower()
+            not in ("false", "0", "no"),
+            bot_username=(os.getenv("BOT_USERNAME") or None),
         )
 
 
