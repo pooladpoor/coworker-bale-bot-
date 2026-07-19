@@ -34,6 +34,7 @@ class JobTimings:
 
     download_seconds: float = 0.0
     gemini_seconds: float = 0.0
+    claude_seconds: float = 0.0
     gpt_seconds: float = 0.0
     html_seconds: float = 0.0
     upload_seconds: float = 0.0

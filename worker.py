@@ -1,5 +1,5 @@
 """Worker coroutines that pull jobs off the queue and process them
-end-to-end: download image -> call both AIs in parallel -> render HTML
+end-to-end: download image -> call all AIs in parallel -> render HTML
 -> upload result. Workers run independently of the polling loop and of
 each other, so many users are served concurrently.
 """
@@ -101,21 +101,25 @@ class Worker:
                 job.chat_id, timings.download_seconds, len(image_bytes),
             )
 
-            # 2. Gemini + GPT in parallel, image base64-encoded exactly once.
-            gemini_result, gpt_result = await self._comet.ask_both(image_bytes)
+            # 2. Gemini + Claude + GPT in parallel, image base64-encoded exactly once.
+            gemini_result, claude_result, gpt_result = await self._comet.ask_all(image_bytes)
             timings.gemini_seconds = gemini_result.elapsed_seconds
+            timings.claude_seconds = claude_result.elapsed_seconds
             timings.gpt_seconds = gpt_result.elapsed_seconds
 
             logger.info(
-                "Chat %s: gemini=%.2fs (error=%s) gpt=%.2fs (error=%s)",
+                "Chat %s: gemini=%.2fs (error=%s) claude=%.2fs (error=%s) gpt=%.2fs (error=%s)",
                 job.chat_id,
                 gemini_result.elapsed_seconds, gemini_result.error,
+                claude_result.elapsed_seconds, claude_result.error,
                 gpt_result.elapsed_seconds, gpt_result.error,
             )
 
             # 3. Render HTML report in memory (no disk I/O).
             with Stopwatch() as sw:
-                buffer = render_report_buffer(gemini_result.text, gpt_result.text)
+                buffer = render_report_buffer(
+                    gemini_result.text, claude_result.text, gpt_result.text
+                )
             timings.html_seconds = sw.elapsed
 
             # 4. Upload result to the user.
@@ -131,11 +135,12 @@ class Worker:
 
         timings.total_seconds = total_sw.elapsed
         logger.info(
-            "Chat %s DONE | download=%.2fs gemini=%.2fs gpt=%.2fs html=%.2fs "
+            "Chat %s DONE | download=%.2fs gemini=%.2fs claude=%.2fs gpt=%.2fs html=%.2fs "
             "upload=%.2fs total=%.2fs | queue_wait=%.2fs",
             job.chat_id,
             timings.download_seconds,
             timings.gemini_seconds,
+            timings.claude_seconds,
             timings.gpt_seconds,
             timings.html_seconds,
             timings.upload_seconds,

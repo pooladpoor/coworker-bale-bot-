@@ -41,6 +41,7 @@ class Settings:
     # --- Models ---------------------------------------------------------------
     gpt_model: str = "gpt-5.6-sol"
     gemini_model: str = "gemini-3-flash"
+    claude_model: str = "claude-sonnet-4-6"
 
     # --- Concurrency / queue ----------------------------------------------
     worker_count: int = 8
@@ -95,6 +96,7 @@ class Settings:
             comet_base_url=os.getenv("COMETAPI_BASE_URL", "https://api.cometapi.com/v1"),
             gpt_model=os.getenv("COMETAPI_GPT_MODEL", "gpt-5.6-sol"),
             gemini_model=os.getenv("COMETAPI_GEMINI_MODEL", "gemini-3-flash"),
+            claude_model=os.getenv("COMETAPI_CLAUDE_MODEL", "claude-sonnet-4-6"),
             worker_count=_get_int("WORKER_COUNT", 8),
             queue_max_size=_get_int("QUEUE_MAX_SIZE", 1000),
             http_timeout_total=_get_float("HTTP_TIMEOUT_TOTAL", 60.0),

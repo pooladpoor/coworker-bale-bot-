@@ -1,7 +1,7 @@
 """Async client for CometAPI.
 
-Both Gemini (via the OpenAI-compatible `chat/completions` endpoint) and
-GPT (via the `responses` endpoint) are called through a single shared
+Gemini and Claude (via the OpenAI-compatible `chat/completions` endpoint)
+and GPT (via the `responses` endpoint) are called through a single shared
 `aiohttp.ClientSession`, giving us connection pooling + keep-alive instead
 of opening a new connection per request.
 """
@@ -107,6 +107,42 @@ class CometAPIClient:
                 error=True,
             )
 
+    async def ask_claude(self, base64_image: str) -> AIResult:
+        """Call Claude through CometAPI's chat/completions endpoint (same
+        OpenAI-compatible shape used for Gemini)."""
+        start = time.monotonic()
+        payload = {
+            "model": self._settings.claude_model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": SYSTEM_PROMPT},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                        },
+                    ],
+                }
+            ],
+        }
+        try:
+            data = await self._post_json("/chat/completions", payload)
+            text = data["choices"][0]["message"]["content"]
+            return AIResult(
+                model_name="claude",
+                text=text,
+                elapsed_seconds=time.monotonic() - start,
+            )
+        except Exception as exc:  # noqa: BLE001 - we want to isolate failures per model
+            logger.exception("Claude request failed")
+            return AIResult(
+                model_name="claude",
+                text=f"خطا در دریافت پاسخ از کلود (CometAPI): {exc}",
+                elapsed_seconds=time.monotonic() - start,
+                error=True,
+            )
+
     async def ask_chatgpt(self, base64_image: str) -> AIResult:
         """Call GPT through CometAPI's OpenAI-compatible responses endpoint."""
         start = time.monotonic()
@@ -156,10 +192,12 @@ class CometAPIClient:
                     chunks.append(content.get("text", ""))
         return "".join(chunks)
 
-    async def ask_both(self, image_bytes: bytes) -> tuple[AIResult, AIResult]:
-        """Encode the image once and fire both requests concurrently."""
+    async def ask_all(self, image_bytes: bytes) -> tuple[AIResult, AIResult, AIResult]:
+        """Encode the image once and fire all three requests concurrently.
+        Returns (gemini, claude, gpt)."""
         base64_image = self.encode_image(image_bytes)
         async with asyncio.TaskGroup() as tg:
             gemini_task = tg.create_task(self.ask_gemini(base64_image))
+            claude_task = tg.create_task(self.ask_claude(base64_image))
             gpt_task = tg.create_task(self.ask_chatgpt(base64_image))
-        return gemini_task.result(), gpt_task.result()
+        return gemini_task.result(), claude_task.result(), gpt_task.result()

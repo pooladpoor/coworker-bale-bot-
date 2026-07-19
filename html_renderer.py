@@ -133,6 +133,7 @@ _HTML_TEMPLATE = """
             overflow: hidden;
         }}
         .gemini {{ border-right: 6px solid #1a73e8; }}
+        .claude {{ border-right: 6px solid #d97706; }}
         .gpt {{ border-right: 6px solid #10a37f; }}
         h3 {{
             margin-top: 0;
@@ -143,6 +144,7 @@ _HTML_TEMPLATE = """
             flex-wrap: wrap;
         }}
         .gemini h3 {{ color: #1a73e8; }}
+        .claude h3 {{ color: #d97706; }}
         .gpt h3 {{ color: #10a37f; }}
 
         .content-area {{
@@ -242,8 +244,12 @@ _HTML_TEMPLATE = """
                 <h3>🤖 پاسخ مدل Gemini (Google)</h3>
                 <div class="content-area">{gemini_html}</div>
             </div>
+            <div class="box claude">
+                <h3>✨ پاسخ مدل Claude (Anthropic)</h3>
+                <div class="content-area">{claude_html}</div>
+            </div>
             <div class="box gpt">
-                <h3>🧠 پاسخ مدل ChatGPT (CometAPI)</h3>
+                <h3>🧠 پاسخ مدل ChatGPT (OpenAI)</h3>
                 <div class="content-area">{gpt_html}</div>
             </div>
         </div>
@@ -253,17 +259,20 @@ _HTML_TEMPLATE = """
 """
 
 
-def render_report_html(gemini_answer: str, gpt_answer: str) -> str:
-    """Build the full HTML string for the two-column report."""
+def render_report_html(gemini_answer: str, claude_answer: str, gpt_answer: str) -> str:
+    """Build the full HTML string for the three-column report."""
     gemini_html = markdown_with_math(gemini_answer)
+    claude_html = markdown_with_math(claude_answer)
     gpt_html = markdown_with_math(gpt_answer)
-    return _HTML_TEMPLATE.format(gemini_html=gemini_html, gpt_html=gpt_html)
+    return _HTML_TEMPLATE.format(
+        gemini_html=gemini_html, claude_html=claude_html, gpt_html=gpt_html
+    )
 
 
-def render_report_buffer(gemini_answer: str, gpt_answer: str) -> io.BytesIO:
+def render_report_buffer(gemini_answer: str, claude_answer: str, gpt_answer: str) -> io.BytesIO:
     """Same as `render_report_html` but returns a ready-to-upload
     in-memory buffer, so no temp file ever touches disk."""
-    html = render_report_html(gemini_answer, gpt_answer)
+    html = render_report_html(gemini_answer, claude_answer, gpt_answer)
     buffer = io.BytesIO(html.encode("utf-8"))
     buffer.seek(0)
     return buffer

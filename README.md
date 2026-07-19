@@ -4,8 +4,8 @@
 
 ## ✨ امکانات
 
-- ارسال یک عکس سوال و دریافت پاسخ تشریحی از **دو مدل هوش مصنوعی به‌صورت موازی**
-- خروجی یک **گزارش HTML** دوستونه با رندر کامل فرمول (MathJax) و مارک‌داون، راست‌به‌چپ
+- ارسال یک عکس سوال و دریافت پاسخ تشریحی از **سه مدل هوش مصنوعی به‌صورت موازی** (Gemini، Claude، ChatGPT)
+- خروجی یک **گزارش HTML** سه‌ستونه با رندر کامل فرمول (MathJax) و مارک‌داون، راست‌به‌چپ
 - پردازش کاملاً **ناهمزمان (async)** با صف کار و pool ثابتی از worker‌ها → پاسخ‌گویی هم‌زمان به چند کاربر بدون معطلی
 - Retry خودکار با backoff نمایی برای خطاهای شبکه‌ای
 - قابل استفاده هم در **چت خصوصی** و هم در **گروه** (در گروه فقط با تگ کردن ربات فعال می‌شود)
@@ -22,8 +22,8 @@ polling loop  --enqueue-->  صف کار (asyncio.Queue)  --مصرف توسط--> 
 ## 🚀 راه‌اندازی
 
 ```bash
-git clone https://github.com/pooladpoor/coworker-bale-bot-.git
-cd coworker-bale-bot-
+git clone <repo-url>
+cd <repo-folder>
 python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -41,8 +41,8 @@ python main.py
 | `main.py` | نقطه‌ی ورود؛ حلقه‌ی polling و مدیریت worker‌ها |
 | `config.py` | تنظیمات پروژه (از `.env`) |
 | `bale_client.py` | ارتباط async با Bale Bot API |
-| `comet_client.py` | ارتباط async با CometAPI (Gemini + GPT) |
-| `html_renderer.py` | ساخت گزارش HTML (مارک‌داون + MathJax) |
+| `comet_client.py` | ارتباط async با CometAPI (Gemini + Claude + GPT) |
+| `html_renderer.py` | ساخت گزارش HTML سه‌ستونه (مارک‌داون + MathJax) |
 | `worker.py` | خط پردازش هر سوال از ابتدا تا انتها |
 | `queue_manager.py` | صف کار |
 | `utils.py` | ابزارهای مشترک (لاگ، retry، تشخیص تگ) |
