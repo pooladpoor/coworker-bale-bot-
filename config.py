@@ -31,6 +31,23 @@ def _get_float(name: str, default: float) -> float:
     return float(raw)
 
 
+def _get_id_set(name: str) -> frozenset[int]:
+    raw = os.getenv(name, "")
+    ids: set[int] = set()
+    for chunk in raw.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        try:
+            ids.add(int(chunk))
+        except ValueError:
+            raise ValueError(
+                f"{name} contains a non-numeric value: {chunk!r}. "
+                "Use a comma-separated list of numeric Bale user IDs."
+            )
+    return frozenset(ids)
+
+
 @dataclass(frozen=True, slots=True)
 class Settings:
     # --- Secrets / endpoints -------------------------------------------------
@@ -77,6 +94,12 @@ class Settings:
     # Optional override; if unset, the username is fetched once at startup
     # via getMe() and cached for the process lifetime.
     bot_username: str | None = None
+
+    # --- Access control ------------------------------------------------------
+    # If non-empty, only these numeric Bale user IDs (the sender's own id,
+    # not the chat id) may use the bot -- in both private chats and groups.
+    # Everyone else gets a polite rejection message instead of an answer.
+    allowed_user_ids: frozenset[int] = frozenset()
 
     @property
     def bale_api_url(self) -> str:
@@ -134,6 +157,7 @@ class Settings:
             group_require_mention=os.getenv("GROUP_REQUIRE_MENTION", "true").strip().lower()
             not in ("false", "0", "no"),
             bot_username=(os.getenv("BOT_USERNAME") or None),
+            allowed_user_ids=_get_id_set("ALLOWED_USER_IDS"),
         )
 
 
@@ -142,3 +166,5 @@ SYSTEM_PROMPT = (
     "سوال را به دقت تحلیل کن و پاسخ را کاملاً گام‌به‌گام، تشریحی و با فرمول‌های دقیق بنویس"
     "مهم: بدون هیچ توضیح اضافه در خروجی فقط جواب سوال رو بنویس"
 )
+
+ACCESS_DENIED_MESSAGE = "شرمنده! باید امین برات اشتراک فعال کنه..."

@@ -20,13 +20,24 @@ import aiohttp
 
 from bale_client import BaleClient
 from comet_client import CometAPIClient
-from config import Settings
+from config import ACCESS_DENIED_MESSAGE, Settings
 from models import IncomingJob
 from queue_manager import JobQueue
 from utils import message_mentions_bot, setup_logging
 from worker import Worker
 
 logger = logging.getLogger(__name__)
+
+
+def _is_authorized(user_id: int | None, settings: Settings) -> bool:
+    """Only the numeric Bale user IDs listed in ALLOWED_USER_IDS may use
+    the bot -- checked against the message SENDER's id, not the chat id,
+    so this works correctly in both private chats and groups."""
+    if not settings.allowed_user_ids:
+        # No allowlist configured -> bot is open to everyone (unchanged
+        # default behaviour).
+        return True
+    return user_id is not None and user_id in settings.allowed_user_ids
 
 
 async def polling_loop(
@@ -39,6 +50,10 @@ async def polling_loop(
     In group/supergroup chats, a photo is only enqueued if the bot is
     @-mentioned in its caption (when `GROUP_REQUIRE_MENTION` is on).
     Private chats always respond, exactly like before.
+
+    If `ALLOWED_USER_IDS` is configured, any message directed at the bot
+    from a sender NOT on that list gets a polite rejection instead of
+    being processed -- in both private chats and groups.
     """
     last_update_id = 0
     logger.info("Polling loop started (bot_username=%s)", bot_username)
@@ -71,6 +86,7 @@ async def polling_loop(
 
             chat_type = chat.get("type", "private")
             is_group = chat_type in ("group", "supergroup")
+            sender_id = message.get("from", {}).get("id")
 
             if "photo" in message:
                 caption = message.get("caption")
@@ -82,6 +98,20 @@ async def polling_loop(
                             "Chat %s (%s): photo without bot mention, ignoring", chat_id, chat_type
                         )
                         continue
+
+                if not _is_authorized(sender_id, settings):
+                    logger.info(
+                        "Rejected photo from unauthorized user %s in chat %s (%s)",
+                        sender_id, chat_id, chat_type,
+                    )
+                    asyncio.create_task(
+                        bale.send_message(
+                            chat_id,
+                            ACCESS_DENIED_MESSAGE,
+                            reply_to_message_id=message.get("message_id") if is_group else None,
+                        )
+                    )
+                    continue
 
                 file_id = message["photo"][-1]["file_id"]
                 job = IncomingJob(
@@ -105,6 +135,20 @@ async def polling_loop(
                     # unrelated message -- only reply if directly mentioned.
                     if not message_mentions_bot(text, entities, bot_username):
                         continue
+
+                if not _is_authorized(sender_id, settings):
+                    logger.info(
+                        "Rejected text from unauthorized user %s in chat %s (%s)",
+                        sender_id, chat_id, chat_type,
+                    )
+                    asyncio.create_task(
+                        bale.send_message(
+                            chat_id,
+                            ACCESS_DENIED_MESSAGE,
+                            reply_to_message_id=message.get("message_id") if is_group else None,
+                        )
+                    )
+                    continue
 
                 # Cheap, immediate reply -- fired off without blocking the
                 # loop on its completion.
