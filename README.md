@@ -10,6 +10,7 @@
 - Retry خودکار با backoff نمایی برای خطاهای شبکه‌ای
 - قابل استفاده هم در **چت خصوصی** و هم در **گروه** (در گروه فقط با تگ کردن ربات فعال می‌شود)
 - تمام تنظیمات (تعداد worker، timeout‌ها، مدل‌ها، رفتار گروه و ...) از طریق فایل `.env`
+- هر مدل با **کلید API مجزای خودش** روی CometAPI صدا زده می‌شود، تا مصرف/هزینه‌ی هر مدل جدا در داشبورد CometAPI قابل رصد باشد
 
 ## 🧱 معماری
 
@@ -29,7 +30,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# BALE_TOKEN و COMETAPI_KEY را در .env تنظیم کنید
+# BALE_TOKEN و سه کلید جدا (COMETAPI_GEMINI_KEY / COMETAPI_CLAUDE_KEY / COMETAPI_GPT_KEY) را در .env تنظیم کنید
 
 python main.py
 ```

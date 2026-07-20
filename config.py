@@ -35,8 +35,14 @@ def _get_float(name: str, default: float) -> float:
 class Settings:
     # --- Secrets / endpoints -------------------------------------------------
     bale_token: str
-    comet_api_key: str
     comet_base_url: str = "https://api.cometapi.com/v1"
+
+    # Separate API keys per model. Using three distinct CometAPI keys/apps
+    # lets you track usage and cost independently for each model on the
+    # CometAPI dashboard, instead of one combined total.
+    comet_gemini_key: str = ""
+    comet_claude_key: str = ""
+    comet_gpt_key: str = ""
 
     # --- Models ---------------------------------------------------------------
     gpt_model: str = "gpt-5.6-sol"
@@ -83,17 +89,32 @@ class Settings:
     @staticmethod
     def load() -> "Settings":
         bale_token = os.getenv("BALE_TOKEN")
-        comet_key = os.getenv("COMETAPI_KEY")
 
-        if not bale_token or not comet_key:
+        gemini_key = os.getenv("COMETAPI_GEMINI_KEY")
+        claude_key = os.getenv("COMETAPI_CLAUDE_KEY")
+        gpt_key = os.getenv("COMETAPI_GPT_KEY")
+
+        missing = [
+            name
+            for name, value in (
+                ("BALE_TOKEN", bale_token),
+                ("COMETAPI_GEMINI_KEY", gemini_key),
+                ("COMETAPI_CLAUDE_KEY", claude_key),
+                ("COMETAPI_GPT_KEY", gpt_key),
+            )
+            if not value
+        ]
+        if missing:
             raise ValueError(
-                "BALE_TOKEN and COMETAPI_KEY must be set in the environment (.env)."
+                "Missing required environment variable(s): " + ", ".join(missing)
             )
 
         return Settings(
             bale_token=bale_token,
-            comet_api_key=comet_key,
             comet_base_url=os.getenv("COMETAPI_BASE_URL", "https://api.cometapi.com/v1"),
+            comet_gemini_key=gemini_key,
+            comet_claude_key=claude_key,
+            comet_gpt_key=gpt_key,
             gpt_model=os.getenv("COMETAPI_GPT_MODEL", "gpt-5.6-sol"),
             gemini_model=os.getenv("COMETAPI_GEMINI_MODEL", "gemini-3-flash"),
             claude_model=os.getenv("COMETAPI_CLAUDE_MODEL", "claude-sonnet-4-6"),

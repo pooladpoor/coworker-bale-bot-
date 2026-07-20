@@ -4,6 +4,11 @@ Gemini and Claude (via the OpenAI-compatible `chat/completions` endpoint)
 and GPT (via the `responses` endpoint) are called through a single shared
 `aiohttp.ClientSession`, giving us connection pooling + keep-alive instead
 of opening a new connection per request.
+
+Each model uses its OWN CometAPI key. This means usage/cost for Gemini,
+Claude, and GPT show up as three separate entries on the CometAPI
+dashboard instead of one combined total, making it easy to monitor
+consumption per model independently.
 """
 
 from __future__ import annotations
@@ -30,29 +35,38 @@ _RETRIABLE_EXCEPTIONS = (
 
 
 class CometAPIClient:
-    """Thin async wrapper around the two CometAPI endpoints we use."""
+    """Thin async wrapper around the CometAPI endpoints we use, with a
+    distinct API key per model."""
 
     def __init__(self, session: aiohttp.ClientSession, settings: Settings) -> None:
         self._session = session
         self._settings = settings
-        self._headers = {
-            "Authorization": f"Bearer {settings.comet_api_key}",
+        self._ai_timeout = aiohttp.ClientTimeout(total=settings.ai_request_timeout)
+
+        # One header set per model, each carrying its own API key.
+        self._gemini_headers = self._build_headers(settings.comet_gemini_key)
+        self._claude_headers = self._build_headers(settings.comet_claude_key)
+        self._gpt_headers = self._build_headers(settings.comet_gpt_key)
+
+    @staticmethod
+    def _build_headers(api_key: str) -> dict:
+        return {
+            "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
         }
-        self._ai_timeout = aiohttp.ClientTimeout(total=settings.ai_request_timeout)
 
     @staticmethod
     def encode_image(image_bytes: bytes) -> str:
         """Base64-encode an image exactly once; callers should cache and
-        reuse the resulting string for both AI requests."""
+        reuse the resulting string for all three AI requests."""
         return base64.b64encode(image_bytes).decode("utf-8")
 
-    async def _post_json(self, path: str, payload: dict) -> dict:
+    async def _post_json(self, path: str, payload: dict, headers: dict) -> dict:
         url = f"{self._settings.comet_base_url}{path}"
 
         async def _do_request() -> dict:
             async with self._session.post(
-                url, json=payload, headers=self._headers, timeout=self._ai_timeout
+                url, json=payload, headers=headers, timeout=self._ai_timeout
             ) as resp:
                 if resp.status >= 500:
                     # Treat server errors as retriable.
@@ -73,7 +87,8 @@ class CometAPIClient:
         )
 
     async def ask_gemini(self, base64_image: str) -> AIResult:
-        """Call Gemini through CometAPI's chat/completions endpoint."""
+        """Call Gemini through CometAPI's chat/completions endpoint,
+        using Gemini's own API key."""
         start = time.monotonic()
         payload = {
             "model": self._settings.gemini_model,
@@ -91,7 +106,9 @@ class CometAPIClient:
             ],
         }
         try:
-            data = await self._post_json("/chat/completions", payload)
+            data = await self._post_json(
+                "/chat/completions", payload, self._gemini_headers
+            )
             text = data["choices"][0]["message"]["content"]
             return AIResult(
                 model_name="gemini",
@@ -109,7 +126,8 @@ class CometAPIClient:
 
     async def ask_claude(self, base64_image: str) -> AIResult:
         """Call Claude through CometAPI's chat/completions endpoint (same
-        OpenAI-compatible shape used for Gemini)."""
+        OpenAI-compatible shape used for Gemini), using Claude's own API
+        key."""
         start = time.monotonic()
         payload = {
             "model": self._settings.claude_model,
@@ -127,7 +145,9 @@ class CometAPIClient:
             ],
         }
         try:
-            data = await self._post_json("/chat/completions", payload)
+            data = await self._post_json(
+                "/chat/completions", payload, self._claude_headers
+            )
             text = data["choices"][0]["message"]["content"]
             return AIResult(
                 model_name="claude",
@@ -144,7 +164,8 @@ class CometAPIClient:
             )
 
     async def ask_chatgpt(self, base64_image: str) -> AIResult:
-        """Call GPT through CometAPI's OpenAI-compatible responses endpoint."""
+        """Call GPT through CometAPI's OpenAI-compatible responses
+        endpoint, using GPT's own API key."""
         start = time.monotonic()
         payload = {
             "model": self._settings.gpt_model,
@@ -162,7 +183,7 @@ class CometAPIClient:
             ],
         }
         try:
-            data = await self._post_json("/responses", payload)
+            data = await self._post_json("/responses", payload, self._gpt_headers)
             text = self._extract_output_text(data)
             return AIResult(
                 model_name="gpt",
@@ -193,7 +214,8 @@ class CometAPIClient:
         return "".join(chunks)
 
     async def ask_all(self, image_bytes: bytes) -> tuple[AIResult, AIResult, AIResult]:
-        """Encode the image once and fire all three requests concurrently.
+        """Encode the image once and fire all three requests concurrently,
+        each authenticated with its own API key.
         Returns (gemini, claude, gpt)."""
         base64_image = self.encode_image(image_bytes)
         async with asyncio.TaskGroup() as tg:
