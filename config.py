@@ -4,6 +4,12 @@ Centralized configuration for the bot.
 All tunables are read from environment variables (via `.env`) so the
 deployment can be adjusted without touching code. Sensible defaults are
 provided for anything non-critical.
+
+Each of the three models (Gemini, Claude, GPT) is configured completely
+independently: its own base URL, its own API key, and its own model
+name. This means each one can point at a *different* provider/platform
+(CometAPI, a direct provider API, a self-hosted gateway, etc.) -- there
+is no hardcoded dependency on any single platform.
 """
 
 from __future__ import annotations
@@ -49,22 +55,33 @@ def _get_id_set(name: str) -> frozenset[int]:
 
 
 @dataclass(frozen=True, slots=True)
+class ProviderConfig:
+    """Everything needed to call one model's API: which platform
+    (base_url), which credential, and which model name."""
+
+    base_url: str
+    api_key: str
+    model: str
+
+
+@dataclass(frozen=True, slots=True)
 class Settings:
-    # --- Secrets / endpoints -------------------------------------------------
+    # --- Bale -----------------------------------------------------------------
     bale_token: str
-    comet_base_url: str = "https://api.cometapi.com/v1"
 
-    # Separate API keys per model. Using three distinct CometAPI keys/apps
-    # lets you track usage and cost independently for each model on the
-    # CometAPI dashboard, instead of one combined total.
-    comet_gemini_key: str = ""
-    comet_claude_key: str = ""
-    comet_gpt_key: str = ""
-
-    # --- Models ---------------------------------------------------------------
-    gpt_model: str = "gpt-5.6-sol"
-    gemini_model: str = "gemini-3-flash"
-    claude_model: str = "claude-sonnet-4-6"
+    # --- Per-model provider configuration -------------------------------------
+    # Each model is fully independent -- point any of them at any
+    # OpenAI-compatible platform (CometAPI, OpenRouter, a direct provider
+    # API, a self-hosted gateway, ...) by changing its base URL.
+    gemini: ProviderConfig = field(
+        default_factory=lambda: ProviderConfig("", "", "gemini-3-flash")
+    )
+    claude: ProviderConfig = field(
+        default_factory=lambda: ProviderConfig("", "", "claude-sonnet-4-6")
+    )
+    gpt: ProviderConfig = field(
+        default_factory=lambda: ProviderConfig("", "", "gpt-5.6-sol")
+    )
 
     # --- Concurrency / queue ----------------------------------------------
     worker_count: int = 8
@@ -113,17 +130,24 @@ class Settings:
     def load() -> "Settings":
         bale_token = os.getenv("BALE_TOKEN")
 
-        gemini_key = os.getenv("COMETAPI_GEMINI_KEY")
-        claude_key = os.getenv("COMETAPI_CLAUDE_KEY")
-        gpt_key = os.getenv("COMETAPI_GPT_KEY")
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        claude_key = os.getenv("CLAUDE_API_KEY")
+        gpt_key = os.getenv("GPT_API_KEY")
+
+        gemini_base_url = os.getenv("GEMINI_BASE_URL")
+        claude_base_url = os.getenv("CLAUDE_BASE_URL")
+        gpt_base_url = os.getenv("GPT_BASE_URL")
 
         missing = [
             name
             for name, value in (
                 ("BALE_TOKEN", bale_token),
-                ("COMETAPI_GEMINI_KEY", gemini_key),
-                ("COMETAPI_CLAUDE_KEY", claude_key),
-                ("COMETAPI_GPT_KEY", gpt_key),
+                ("GEMINI_API_KEY", gemini_key),
+                ("CLAUDE_API_KEY", claude_key),
+                ("GPT_API_KEY", gpt_key),
+                ("GEMINI_BASE_URL", gemini_base_url),
+                ("CLAUDE_BASE_URL", claude_base_url),
+                ("GPT_BASE_URL", gpt_base_url),
             )
             if not value
         ]
@@ -134,13 +158,21 @@ class Settings:
 
         return Settings(
             bale_token=bale_token,
-            comet_base_url=os.getenv("COMETAPI_BASE_URL", "https://api.cometapi.com/v1"),
-            comet_gemini_key=gemini_key,
-            comet_claude_key=claude_key,
-            comet_gpt_key=gpt_key,
-            gpt_model=os.getenv("COMETAPI_GPT_MODEL", "gpt-5.6-sol"),
-            gemini_model=os.getenv("COMETAPI_GEMINI_MODEL", "gemini-3-flash"),
-            claude_model=os.getenv("COMETAPI_CLAUDE_MODEL", "claude-sonnet-4-6"),
+            gemini=ProviderConfig(
+                base_url=gemini_base_url.rstrip("/"),
+                api_key=gemini_key,
+                model=os.getenv("GEMINI_MODEL", "gemini-3-flash"),
+            ),
+            claude=ProviderConfig(
+                base_url=claude_base_url.rstrip("/"),
+                api_key=claude_key,
+                model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
+            ),
+            gpt=ProviderConfig(
+                base_url=gpt_base_url.rstrip("/"),
+                api_key=gpt_key,
+                model=os.getenv("GPT_MODEL", "gpt-5.6-sol"),
+            ),
             worker_count=_get_int("WORKER_COUNT", 8),
             queue_max_size=_get_int("QUEUE_MAX_SIZE", 1000),
             http_timeout_total=_get_float("HTTP_TIMEOUT_TOTAL", 60.0),

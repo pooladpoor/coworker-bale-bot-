@@ -19,7 +19,7 @@ import logging
 import aiohttp
 
 from bale_client import BaleClient
-from comet_client import CometAPIClient
+from ai_client import AIClient
 from config import ACCESS_DENIED_MESSAGE, Settings
 from models import IncomingJob
 from queue_manager import JobQueue
@@ -180,7 +180,7 @@ async def run() -> None:
 
     async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
         bale = BaleClient(session, settings)
-        comet = CometAPIClient(session, settings)
+        ai_client = AIClient(session, settings)
         queue = JobQueue(settings.queue_max_size)
 
         bot_username = settings.bot_username
@@ -196,7 +196,7 @@ async def run() -> None:
                 )
 
         workers = [
-            Worker(worker_id=i, queue=queue, bale=bale, comet=comet, settings=settings)
+            Worker(worker_id=i, queue=queue, bale=bale, ai_client=ai_client, settings=settings)
             for i in range(settings.worker_count)
         ]
 

@@ -10,7 +10,7 @@ import logging
 import time
 
 from bale_client import BaleClient
-from comet_client import CometAPIClient
+from ai_client import AIClient
 from config import Settings
 from html_renderer import render_report_buffer
 from models import IncomingJob, JobTimings
@@ -29,13 +29,13 @@ class Worker:
         worker_id: int,
         queue: JobQueue,
         bale: BaleClient,
-        comet: CometAPIClient,
+        ai_client: AIClient,
         settings: Settings,
     ) -> None:
         self.worker_id = worker_id
         self._queue = queue
         self._bale = bale
-        self._comet = comet
+        self._ai_client = ai_client
         self._settings = settings
 
     async def run(self) -> None:
@@ -102,7 +102,7 @@ class Worker:
             )
 
             # 2. Gemini + Claude + GPT in parallel, image base64-encoded exactly once.
-            gemini_result, claude_result, gpt_result = await self._comet.ask_all(image_bytes)
+            gemini_result, claude_result, gpt_result = await self._ai_client.ask_all(image_bytes)
             timings.gemini_seconds = gemini_result.elapsed_seconds
             timings.claude_seconds = claude_result.elapsed_seconds
             timings.gpt_seconds = gpt_result.elapsed_seconds
